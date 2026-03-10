@@ -56,37 +56,72 @@ namespace SyncComponent
         }
 
         // Обновление контакта в Google (используем PATCH запрос)
-        private async Task UpdateGoogleContactAsync(string accessToken, Contact localContact)
+        private async Task<bool> UpdateGoogleContactAsync(string accessToken, Contact localContact, string etag)
         {
             try
             {
-                JsonObject root = new JsonObject();
-                // Google требует при патче указывать, какие поля меняем
-                root.SetNamedValue("updateMask", JsonValue.CreateStringValue("names,phoneNumbers"));
+                // 1. Формируем "чистый" объект контакта
+                JsonObject person = new JsonObject();
 
-                JsonObject names = new JsonObject();
-                names.SetNamedValue("givenName", JsonValue.CreateStringValue(localContact.FirstName ?? ""));
-                names.SetNamedValue("familyName", JsonValue.CreateStringValue(localContact.LastName ?? ""));
-                root.SetNamedValue("names", new JsonArray { names });
+                JsonArray names = new JsonArray();
+                JsonObject nameObj = new JsonObject();
+                nameObj.SetNamedValue("givenName", JsonValue.CreateStringValue(localContact.FirstName ?? ""));
+                nameObj.SetNamedValue("familyName", JsonValue.CreateStringValue(localContact.LastName ?? ""));
+                names.Add(nameObj);
+                person.SetNamedValue("names", names);
 
                 JsonArray phones = new JsonArray();
                 foreach (var p in localContact.Phones)
-                    phones.Add(new JsonObject { { "value", JsonValue.CreateStringValue(p.Number) } });
-                root.SetNamedValue("phoneNumbers", phones);
+                {
+                    if (!string.IsNullOrEmpty(p.Number))
+                    {
+                        JsonObject phoneObj = new JsonObject();
+                        phoneObj.SetNamedValue("value", JsonValue.CreateStringValue(p.Number));
+                        phones.Add(phoneObj);
+                    }
+                }
+                person.SetNamedValue("phoneNumbers", phones);
+                person.SetNamedValue("etag", JsonValue.CreateStringValue(etag));
 
                 using (var client = new HttpClient())
                 {
                     client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
-                    // Patch-запрос к Google API
-                    var method = new HttpMethod("PATCH");
-                    var request = new HttpRequestMessage(method, $"https://people.googleapis.com/v1/{localContact.RemoteId}:updateContact?updateMask=names,phoneNumbers")
+
+                    // ВАЖНО: 
+                    // 1. Используем :updateContact
+                    // 2. Маска updateMask=names,phoneNumbers ОБЯЗАТЕЛЬНА в URL для этого метода
+                    // 3. ID должен начинаться с people/, если RemoteId его не содержит, добавьте вручную
+                    string resourceId = localContact.RemoteId;
+                    if (!resourceId.StartsWith("people/")) resourceId = "people/" + resourceId;
+
+                    string url = $"https://people.googleapis.com/v1/{resourceId}:updateContact?updatePersonFields=names,phoneNumbers";
+
+                    // Используем PATCH
+                    var request = new HttpRequestMessage(new HttpMethod("PATCH"), url)
                     {
-                        Content = new StringContent(root.Stringify(), System.Text.Encoding.UTF8, "application/json")
+                        Content = new StringContent(person.Stringify(), System.Text.Encoding.UTF8, "application/json")
                     };
-                    await client.SendAsync(request);
+
+                    var response = await client.SendAsync(request);
+
+                    if (response.IsSuccessStatusCode)
+                    {
+                        System.Diagnostics.Debug.WriteLine("Google: Контакт успешно обновлен.");
+                        return true;
+                    }
+                    else
+                    {
+                        string error = await response.Content.ReadAsStringAsync();
+                        System.Diagnostics.Debug.WriteLine($"Google: Ошибка PATCH: {error}");
+                        return false;
+                    }
                 }
             }
-            catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"Ошибка Patch: {ex.Message}"); }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Google: Исключение: {ex.Message}");
+                return false;
+            }
         }
 
         private async Task ExecuteSyncAsync()
@@ -140,9 +175,12 @@ namespace SyncComponent
             int cloudDeletedCount = 0;
             int linkedCount = 0;
 
+            var etagMap = await LoadEtagsAsync();
+
             // === ФАЗА 1: УДАЛЕНИЕ ИЗ GOOGLE ===
             foreach (var gc in googleContacts.ToList())
             {
+                etagMap[gc.Id] = gc.ETag;
                 var localMatch = existingContacts.FirstOrDefault(c => c.RemoteId == gc.Id);
                 if (localMatch == null && syncedIds.Contains(gc.Id))
                 {
@@ -176,7 +214,10 @@ namespace SyncComponent
                     if (googleMatch != null && AreContactsDifferent(localContact, googleMatch))
                     {
                         System.Diagnostics.Debug.WriteLine($"[^] Обновление контакта в Google: {localContact.FirstName} {localContact.LastName}");
-                        await UpdateGoogleContactAsync(accessToken, localContact);
+                        string currentEtag = etagMap.ContainsKey(localContact.RemoteId) ? etagMap[localContact.RemoteId] : "";
+
+                        bool success = await UpdateGoogleContactAsync(accessToken, localContact, currentEtag);
+                        
                         uploadedCount++;
 
                         // ВАЖНО: Обновляем данные в памяти, чтобы Фаза 4 не скачала старые данные обратно!
@@ -263,7 +304,7 @@ namespace SyncComponent
                     System.Diagnostics.Debug.WriteLine($"[+] Скачан контакт: {gc.FirstName} {gc.LastName}");
                 }
             }
-
+            await SaveEtagsAsync(etagMap);
             // === ФИНАЛ: СОХРАНЯЕМ "ПАМЯТЬ" СИНХРОНИЗАЦИИ ===
             var newSyncedIds = existingContacts.Select(c => c.RemoteId).Where(id => !string.IsNullOrEmpty(id));
             await SaveSyncedIdsAsync(newSyncedIds);
@@ -295,6 +336,45 @@ namespace SyncComponent
             return null;
         }
 
+        private string GetEtagForContact(string remoteId)
+{
+    // Здесь нужно считать из файла/настроек сохраненный ETag для данного ID
+    // Например: return localSettings.Values["ETag_" + remoteId] as string;
+    return ""; // Пока верните пустоту, если не сохраняли, но Google может продолжать требовать
+}
+
+        private async Task<System.Collections.Generic.Dictionary<string, string>> LoadEtagsAsync()
+        {
+            var etags = new System.Collections.Generic.Dictionary<string, string>();
+            try
+            {
+                var folder = Windows.Storage.ApplicationData.Current.LocalFolder;
+                var file = await folder.GetFileAsync("etags.json");
+                string jsonString = await Windows.Storage.FileIO.ReadTextAsync(file);
+
+                JsonObject root = JsonObject.Parse(jsonString);
+                foreach (var key in root.Keys)
+                {
+                    etags[key] = root.GetNamedString(key);
+                }
+            }
+            catch { /* Файла еще нет */ }
+            return etags;
+        }
+
+        private async Task SaveEtagsAsync(System.Collections.Generic.Dictionary<string, string> etags)
+        {
+            JsonObject root = new JsonObject();
+            foreach (var kvp in etags)
+            {
+                root.SetNamedValue(kvp.Key, JsonValue.CreateStringValue(kvp.Value));
+            }
+
+            var folder = Windows.Storage.ApplicationData.Current.LocalFolder;
+            var file = await folder.CreateFileAsync("etags.json", Windows.Storage.CreationCollisionOption.ReplaceExisting);
+            await Windows.Storage.FileIO.WriteTextAsync(file, root.Stringify());
+        }
+
         private async Task<List<GoogleContact>> FetchGoogleContactsAsync(string accessToken)
         {
             var contactsList = new List<GoogleContact>();
@@ -302,6 +382,7 @@ namespace SyncComponent
             using (var client = new HttpClient())
             {
                 client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+                
 
                 string nextPageToken = "";
                 bool hasMorePages = true;
