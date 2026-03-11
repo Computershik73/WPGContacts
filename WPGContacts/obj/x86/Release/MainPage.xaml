@@ -14,17 +14,17 @@
         <!-- Панель входа (показывается, если аккаунта нет) -->
         <StackPanel x:ConnectionId='2' x:Name="LoginPanel" Visibility="Visible" Margin="0,20,0,0">
             <TextBlock Text="Настройки Google API:" FontWeight="SemiBold" Margin="0,0,0,5"/>
-            <TextBox x:ConnectionId='9' x:Name="ClientIdBox" Header="Client ID" PlaceholderText="...apps.googleusercontent.com" Margin="0,0,0,10"/>
-            <TextBox x:ConnectionId='10' x:Name="ClientSecretBox" Header="Client Secret" PlaceholderText="GOCSPX-..." Margin="0,0,0,15"/>
+            <TextBox x:ConnectionId='10' x:Name="ClientIdBox" Header="Client ID" PlaceholderText="...apps.googleusercontent.com" Margin="0,0,0,10"/>
+            <TextBox x:ConnectionId='11' x:Name="ClientSecretBox" Header="Client Secret" PlaceholderText="GOCSPX-..." Margin="0,0,0,15"/>
 
             <TextBlock Text="Подключите аккаунт для синхронизации:" Margin="0,0,0,10" />
-            <Button x:ConnectionId='11' x:Name="LoginButton" Content="Авторизоваться"                           HorizontalAlignment="Stretch" Height="50" />
+            <Button x:ConnectionId='12' x:Name="LoginButton" Content="Авторизоваться"                           HorizontalAlignment="Stretch" Height="50" />
         </StackPanel>
 
         <!-- Панель с вводом кода (показывается в процессе входа) -->
         <StackPanel x:ConnectionId='3' x:Name="CodePanel" Visibility="Collapsed" Margin="0,15,0,0">
             <TextBlock Text="Введите этот код в браузере (скопирован в буфер):" TextWrapping="Wrap" />
-            <TextBlock x:ConnectionId='8' x:Name="UserCodeText" Text="ABCD-1234" FontSize="32" FontWeight="Bold" Foreground="Orange" HorizontalAlignment="Center" Margin="0,10" />
+            <TextBlock x:ConnectionId='9' x:Name="UserCodeText" Text="ABCD-1234" FontSize="32" FontWeight="Bold" Foreground="Orange" HorizontalAlignment="Center" Margin="0,10" />
             <ProgressRing IsActive="True" Width="40" Height="40" Margin="0,10" />
             <TextBlock Text="Ожидание подтверждения в браузере..." HorizontalAlignment="Center" />
         </StackPanel>
@@ -36,12 +36,13 @@
             <TextBlock Text="Контакты синхронизируются в фоновом режиме." TextWrapping="Wrap" Margin="0,5,0,20" HorizontalAlignment="Center" TextAlignment="Center"/>
 
             <!-- НОВАЯ КНОПКА РУЧНОЙ СИНХРОНИЗАЦИИ -->
-            <Button x:ConnectionId='6' x:Name="ManualSyncButton" Content="Синхронизировать сейчас"                                HorizontalAlignment="Stretch" Margin="0,0,0,10" Background="#0078D7" Foreground="White"/>
+            <Button x:ConnectionId='7' x:Name="ManualSyncButton" Content="Синхронизировать сейчас"                                HorizontalAlignment="Stretch" Margin="0,0,0,10" Background="#0078D7" Foreground="White"/>
 
-            <Button x:ConnectionId='7' x:Name="LogoutButton" Content="Выйти из аккаунта"                            HorizontalAlignment="Stretch" />
+            <Button x:ConnectionId='8' x:Name="LogoutButton" Content="Выйти из аккаунта"                            HorizontalAlignment="Stretch" />
         </StackPanel>
 
         <TextBlock x:ConnectionId='5' x:Name="StatusText" TextWrapping="Wrap" Foreground="LightGray" Margin="0,15,0,0" HorizontalAlignment="Center"/>
+        <TextBlock x:ConnectionId='6' x:Name="ProgressText" Text="Ожидание..." Foreground="Cyan" FontSize="14" Margin="0,10,0,0" HorizontalAlignment="Center" />
     </StackPanel>
 </Page>
 

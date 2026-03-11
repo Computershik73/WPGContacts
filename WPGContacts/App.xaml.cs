@@ -18,6 +18,7 @@ using Windows.UI.Xaml.Navigation;
 using Windows.ApplicationModel.Activation;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
+using Windows.ApplicationModel.Background;
 
 namespace WPGContacts
 {
@@ -84,7 +85,7 @@ namespace WPGContacts
         /// например, если приложение запускается для открытия конкретного файла.
         /// </summary>
         /// <param name="e">Сведения о запросе и обработке запуска.</param>
-        protected override void OnLaunched(LaunchActivatedEventArgs e)
+        protected override async void OnLaunched(LaunchActivatedEventArgs e)
         {
 #if DEBUG
             if (System.Diagnostics.Debugger.IsAttached)
@@ -124,6 +125,8 @@ namespace WPGContacts
                 // Обеспечение активности текущего окна
                 Window.Current.Activate();
             }
+
+            await BackgroundExecutionManager.RequestAccessAsync();
         }
 
         /// <summary>

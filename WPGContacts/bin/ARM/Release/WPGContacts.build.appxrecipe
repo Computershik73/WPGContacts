@@ -9,7 +9,7 @@
     <SolutionConfiguration>Release|ARM</SolutionConfiguration>
     <PackageArchitecture>arm</PackageArchitecture>
     <PackageIdentityName>c0433f23-2b0f-4c71-95d9-262b68630ef8</PackageIdentityName>
-    <PackageIdentityPublisher>CN=User</PackageIdentityPublisher>
+    <PackageIdentityPublisher>CN=Computershik</PackageIdentityPublisher>
     <IntermediateOutputPath>C:\Users\User\documents\visual studio 2015\Projects\WPGContacts\WPGContacts\obj\ARM\Release\</IntermediateOutputPath>
     <RemoteDeploymentType></RemoteDeploymentType>
     <PackageRegistrationPath></PackageRegistrationPath>

@@ -167,11 +167,49 @@ namespace WPGContacts
                 // ВМЕСТО простого изменения текста, вызываем смену интерфейса:
                 ShowLoggedInUI();
                 StatusText.Text = "Успешно! Аккаунт подключен.";
+                await RunManualSync();
             }
             catch (Exception ex)
             {
                 StatusText.Text = "Ошибка настройки контактов: " + ex.Message;
                 ShowLoginUI();
+            }
+        }
+
+        private async Task RunManualSync()
+        {
+            ManualSyncButton.IsEnabled = false;
+            LogoutButton.IsEnabled = false;
+            //ProgressText.Text = "Запуск синхронизации...";
+
+            try
+            {
+                var syncManager = new SyncComponent.SyncManager();
+
+                // Вызываем новый метод с прогрессом
+                var operation = syncManager.SyncNowAsync();
+
+                // Подписываемся на обновления прогресса из фонового компонента
+                operation.Progress = (info, progressValue) =>
+                {
+                    // Безопасный вызов диспетчера
+                    var action = Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, () =>
+                    {
+                        //ProgressText.Text = progressValue;
+                    });
+                };
+
+                await operation;
+                StatusText.Text = "Синхронизация успешно завершена!";
+            }
+            catch (Exception ex)
+            {
+                StatusText.Text = "Ошибка: " + ex.Message;
+            }
+            finally
+            {
+                ManualSyncButton.IsEnabled = true;
+                LogoutButton.IsEnabled = true;
             }
         }
 
@@ -209,13 +247,24 @@ namespace WPGContacts
 
         private async void RegisterBackgroundTask()
         {
-            var access = await BackgroundExecutionManager.RequestAccessAsync();
+            
+            BackgroundAccessStatus status = await BackgroundExecutionManager.RequestAccessAsync();
+
+            // 2. Проверяем результат
+            if (status == BackgroundAccessStatus.DeniedByUser ||
+                status == BackgroundAccessStatus.DeniedBySystemPolicy)
+            {
+                StatusText.Text = "Предупреждение: Работа в фоне запрещена в настройках телефона. Синхронизация будет работать только при открытом приложении.";
+                return;
+            }
+
             var existingTask = BackgroundTaskRegistration.AllTasks.Values.FirstOrDefault(t => t.Name == TaskName);
             existingTask?.Unregister(true);
 
             var builder = new BackgroundTaskBuilder { Name = TaskName, TaskEntryPoint = TaskEntryPoint };
             builder.SetTrigger(new TimeTrigger(15, false));
             builder.AddCondition(new SystemCondition(SystemConditionType.InternetAvailable));
+            builder.AddCondition(new SystemCondition(SystemConditionType.BackgroundWorkCostNotHigh));
             builder.Register();
         }
 

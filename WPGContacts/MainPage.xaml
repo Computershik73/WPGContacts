@@ -42,5 +42,6 @@
         </StackPanel>
 
         <TextBlock x:Name="StatusText" TextWrapping="Wrap" Foreground="LightGray" Margin="0,15,0,0" HorizontalAlignment="Center"/>
+        
     </StackPanel>
 </Page>
